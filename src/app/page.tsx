@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { login, logout, getToken, isAuthenticated } from "@/lib/auth";
+import { saveToken, validateToken, logout, getToken, isAuthenticated } from "@/lib/auth";
 import { describeImage } from "@/lib/models";
 
 type AppState =
@@ -18,6 +18,9 @@ export default function Home() {
   const [description, setDescription] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [tokenInput, setTokenInput] = useState("");
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [validating, setValidating] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,6 +30,24 @@ export default function Home() {
   useEffect(() => {
     setAppState(isAuthenticated() ? "camera" : "unauthenticated");
   }, []);
+
+  const handleTokenSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = tokenInput.trim();
+    if (!token) return;
+
+    setValidating(true);
+    setTokenError(null);
+
+    const valid = await validateToken(token);
+    if (valid) {
+      saveToken(token);
+      setAppState("camera");
+    } else {
+      setTokenError("Invalid token. Make sure you created a PAT with the correct scopes.");
+    }
+    setValidating(false);
+  };
 
   // Camera management
 
@@ -145,22 +166,53 @@ export default function Home() {
   if (appState === "unauthenticated") {
     return (
       <div className="min-h-dvh flex items-center justify-center p-6">
-        <div className="text-center space-y-6 max-w-sm">
+        <div className="text-center space-y-6 max-w-sm w-full">
           <div className="text-6xl">📸</div>
           <h1 className="text-3xl font-bold">Vision Describer</h1>
           <p className="text-gray-400">
             Take a photo and get an AI-powered description using GitHub Models.
           </p>
-          <button
-            onClick={login}
-            className="w-full px-6 py-4 bg-white text-black rounded-2xl font-semibold text-lg
-                       active:scale-95 transition-transform"
-          >
-            🔐 Sign in with GitHub
-          </button>
-          <p className="text-xs text-gray-600">
-            Requires a GitHub account with access to GitHub Models.
-          </p>
+
+          <form onSubmit={handleTokenSubmit} className="space-y-3 text-left">
+            <label className="block text-sm text-gray-300 font-medium">
+              GitHub Personal Access Token
+            </label>
+            <input
+              type="password"
+              value={tokenInput}
+              onChange={(e) => setTokenInput(e.target.value)}
+              placeholder="ghp_xxxxxxxxxxxx"
+              className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl
+                         text-white placeholder-gray-600 focus:outline-none focus:border-gray-500"
+            />
+            {tokenError && (
+              <p className="text-red-400 text-sm">{tokenError}</p>
+            )}
+            <button
+              type="submit"
+              disabled={!tokenInput.trim() || validating}
+              className="w-full px-6 py-4 bg-white text-black rounded-2xl font-semibold text-lg
+                         disabled:opacity-50 active:scale-95 transition-transform"
+            >
+              {validating ? "Validating..." : "🔐 Sign In"}
+            </button>
+          </form>
+
+          <div className="text-xs text-gray-600 space-y-1">
+            <p>
+              Create a PAT at{" "}
+              <a
+                href="https://github.com/settings/tokens?type=beta"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-400 underline"
+              >
+                github.com/settings/tokens
+              </a>
+            </p>
+            <p>Required scope: <strong>Models</strong> (read)</p>
+            <p>Your token stays in your browser and is never stored on any server.</p>
+          </div>
         </div>
       </div>
     );
